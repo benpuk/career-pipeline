@@ -671,8 +671,9 @@ class Handler(SimpleHTTPRequestHandler):
 def main():
     init_db()
     port = int(os.environ.get("PORT", "8765"))
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
-    print(f"Job tracker running at http://127.0.0.1:{port}")
+    host = os.environ.get("HOST", "127.0.0.1")
+    server = ThreadingHTTPServer((host, port), Handler)
+    print(f"Job tracker running at http://{host}:{port}")
     print(f"Database: {DB_PATH}")
     server.serve_forever()
 

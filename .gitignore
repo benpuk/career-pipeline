@@ -8,8 +8,14 @@
 .env.*
 !.env.example
 
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
 __pycache__/
 *.py[cod]
+.pycache/
 .pytest_cache/
 .venv/
 venv/
@@ -30,6 +36,7 @@ backups/
 *.jpg
 *.jpeg
 *.webp
+!docs/screenshots/README.md
 
 localStorage*.json
 sessionStorage*.json
