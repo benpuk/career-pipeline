@@ -1,0 +1,17 @@
+services:
+  job-application-tracker:
+    build: .
+    ports:
+      - "8765:8765"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8765
+      NEXT_PUBLIC_APP_NAME: "Job Application Tracker"
+      NEXT_PUBLIC_ENABLE_DEMO_DATA: "false"
+      NEXT_PUBLIC_DEFAULT_CURRENCY: "GBP"
+      NEXT_PUBLIC_GHOSTING_THRESHOLD_DAYS: "21"
+    volumes:
+      - job_tracker_data:/app/local-job-crm/data
+
+volumes:
+  job_tracker_data:

@@ -1,6 +1,26 @@
+import os
+
+
+def env_bool(name, default):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def env_int(name, default):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
 APP_CONFIG = {
     "app": {
-        "name": "Job Application Tracker",
+        "name": os.environ.get("NEXT_PUBLIC_APP_NAME", "Job Application Tracker"),
         "description": "A lightweight tracker for managing job applications, follow-ups, ghosting, interviews, rejections, and pipeline health.",
         "owner": "Ben Picot",
         "copyrightYear": 2026,
@@ -8,7 +28,7 @@ APP_CONFIG = {
     # Business logic: these values control when an active application is treated
     # as potentially ghosted. Contact resets the counter to last_contact_date.
     "tracking": {
-        "ghostingThresholdDays": 21,
+        "ghostingThresholdDays": env_int("NEXT_PUBLIC_GHOSTING_THRESHOLD_DAYS", 21),
         "warningThresholdDays": 14,
         "resetGhostingCounterOnContact": True,
         "useSuggestedGhosting": False,
@@ -20,14 +40,14 @@ APP_CONFIG = {
     },
     "display": {
         "dateFormat": "dd/MM/yyyy",
-        "currency": "GBP",
+        "currency": os.environ.get("NEXT_PUBLIC_DEFAULT_CURRENCY", "GBP"),
     },
     "storage": {
         "applicationStorageKey": "jobApplicationTracker.applications",
         "settingsStorageKey": "jobApplicationTracker.settings",
     },
     "features": {
-        "enableDemoData": False,
+        "enableDemoData": env_bool("NEXT_PUBLIC_ENABLE_DEMO_DATA", False),
         "enableCsvExport": True,
         "enableCsvImport": False,
         "enableAnalytics": True,

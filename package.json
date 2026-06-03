@@ -1,0 +1,22 @@
+{
+  "name": "job-application-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A lightweight local job application tracker for follow-ups, ghosting, interviews, and pipeline analytics.",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "start": "node scripts/dev.mjs",
+    "preview": "node scripts/dev.mjs",
+    "build": "node scripts/check-python.mjs",
+    "lint": "node scripts/check-python.mjs"
+  },
+  "keywords": [
+    "job-search",
+    "job-tracker",
+    "career-tools",
+    "sqlite",
+    "dashboard",
+    "personal-crm"
+  ],
+  "license": "SEE LICENSE IN LICENSE"
+}

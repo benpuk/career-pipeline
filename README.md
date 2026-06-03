@@ -24,15 +24,24 @@ This repository is prepared for a private GitHub release. It should remain priva
 
 ## Local Setup
 
-Requirements:
+### Prerequisites
 
+- Node.js 20 or newer
+- npm
 - Python 3.10 or newer
 
-Run locally:
+The npm scripts intentionally wrap the lightweight Python local app. There is no Electron, Tauri, hosted backend, authentication layer, or SaaS packaging.
+
+### Install
 
 ```bash
-cd local-job-crm
-python3 app.py
+npm install
+```
+
+### Run Locally
+
+```bash
+npm run dev
 ```
 
 Open:
@@ -41,11 +50,49 @@ Open:
 http://127.0.0.1:8765
 ```
 
-Use another port:
+You can still run the Python app directly:
 
 ```bash
-PORT=9000 python3 app.py
+python3 local-job-crm/app.py
 ```
+
+Use another port or host:
+
+```bash
+PORT=9000 HOST=127.0.0.1 npm run dev
+```
+
+### Build And Checks
+
+This project does not require a frontend build step. The build script verifies the Python source compiles:
+
+```bash
+npm run build
+```
+
+The lint script currently performs the same lightweight Python compile check:
+
+```bash
+npm run lint
+```
+
+### Optional Docker
+
+Docker support is included for simple local review:
+
+```bash
+docker compose up
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8765
+```
+
+Docker stores the runtime SQLite database in the `job_tracker_data` volume.
+
+### Runtime Data
 
 The local database is created at:
 
@@ -63,6 +110,12 @@ Configuration lives in:
 local-job-crm/app_config.py
 ```
 
+Safe environment placeholders are documented in:
+
+```text
+.env.example
+```
+
 The config controls:
 
 - app name, description, owner, and copyright year
@@ -74,6 +127,15 @@ The config controls:
 - feature flags for demo data, CSV export, CSV import, analytics, and commercial branding
 - licence metadata
 
+Supported environment overrides:
+
+- `NEXT_PUBLIC_APP_NAME`
+- `NEXT_PUBLIC_ENABLE_DEMO_DATA`
+- `NEXT_PUBLIC_DEFAULT_CURRENCY`
+- `NEXT_PUBLIC_GHOSTING_THRESHOLD_DAYS`
+- `PORT`
+- `HOST`
+
 Demo data is disabled by default:
 
 ```python
@@ -81,6 +143,8 @@ Demo data is disabled by default:
 ```
 
 If enabled, only fictional records are loaded, using companies such as Acme Technologies, Northstar Digital, FutureStack, and BluePeak Systems.
+
+Do not enable demo data in a database that already contains real application records unless you are comfortable mixing fake and real records locally.
 
 ## Ghosting Logic
 
@@ -111,6 +175,8 @@ Do not commit:
 - cached application state
 
 The repository `.gitignore` blocks those artifacts by default.
+
+Copy `.env.example` to `.env` only for local experimentation. Do not commit `.env`.
 
 ## Licence
 
