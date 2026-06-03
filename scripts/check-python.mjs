@@ -8,10 +8,10 @@ const env = {
 };
 
 const files = [
-  "local-job-crm/app.py",
-  "local-job-crm/app_config.py",
-  "local-job-crm/demo_data.py",
-  "local-job-crm/import_tracker.py",
+  "app/app.py",
+  "app/app_config.py",
+  "app/demo_data.py",
+  "app/import_tracker.py",
 ];
 
 const result = spawnSync(python, ["-m", "py_compile", ...files], {

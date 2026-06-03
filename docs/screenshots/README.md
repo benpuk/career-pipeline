@@ -9,4 +9,4 @@ Recommended captures:
 - application detail view
 - add/edit role form
 
-Before committing screenshots, verify they do not show real company names, recruiter names, salaries, notes, URLs, emails, phone numbers, or browser storage.
+Before committing screenshots, verify they do not show real company names, contact names, salaries, notes, URLs, emails, phone numbers, or browser storage.
