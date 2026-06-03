@@ -99,18 +99,12 @@ def is_active(status):
 
 
 def suggested_status(row):
-    status = row["status"]
-    if status != DEFAULT_STATUS:
-        return ""
-    last_touch = row["last_contact_date"] or row["date_applied"]
-    if days_between(last_touch) >= GHOSTING_THRESHOLD_DAYS:
-        if APP_CONFIG["tracking"]["useSuggestedGhosting"]:
-            return "Ghosted"
-        return ""
     return ""
 
 
 def is_ghosting_risk(row):
+    # Ghosting review is a recommendation only. It never creates a second
+    # status, and any recorded contact restarts the 21-day counter.
     if row["status"] != DEFAULT_STATUS:
         return False
     last_touch = row["last_contact_date"] or row["date_applied"]

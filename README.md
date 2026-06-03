@@ -1,5 +1,9 @@
 # Career Pipeline
 
+[![Build](https://img.shields.io/badge/build-npm%20run%20build-2563eb)](#build-and-checks)
+[![Licence](https://img.shields.io/badge/licence-personal%20use%20only-475569)](LICENSE)
+[![Local first](https://img.shields.io/badge/local--first-privacy--friendly-1f7a4c)](#runtime-data-and-privacy)
+
 Track applications, interviews, ghosting, and job-search progress with clarity.
 
 Career Pipeline is a lightweight local job-search tracking system for individual professionals. It is designed to feel calm, fast, private, and easy to scan while still giving useful pipeline analytics.
@@ -10,12 +14,14 @@ It is not an applicant tracking system, hiring platform, social platform, automa
 
 Screenshots should be added to `docs/screenshots/` using fictional demo data only.
 
-Suggested captures:
-
-- dashboard overview
-- applications table
-- application detail view
-- add/edit role form
+| Screenshot | Purpose | Status |
+| --- | --- | --- |
+| Dashboard overview | Show pipeline health, response rate, interview conversion, and ghosting risk. | Placeholder |
+| Active pipeline | Show the applications table and follow-up workflow. | Placeholder |
+| Ghosted applications | Show how ghosting risk and closed ghosted outcomes are separated. | Placeholder |
+| Analytics view | Show route, role type, ageing, and trend panels. | Placeholder |
+| Mobile layout | Show the app remains usable on narrow screens. | Placeholder |
+| Empty state | Show first-run onboarding with no real data. | Placeholder |
 
 Do not commit screenshots that contain real company names, contact names, salaries, notes, URLs, emails, phone numbers, or browser storage.
 
@@ -29,6 +35,16 @@ Do not commit screenshots that contain real company names, contact names, salari
 - Run locally with SQLite.
 - Start empty by default.
 - Optionally seed fictional demo data for review or screenshots.
+
+## Project Structure
+
+```text
+app/                         Local Python web app
+app/static/                  HTML, CSS, and browser JavaScript
+docs/                        Public-readiness notes and screenshot guidance
+scripts/                     Small npm wrappers for local Python commands
+PUBLIC_RELEASE_CHECKLIST.md  Final checklist before promoting the repo
+```
 
 ## Local Setup
 
@@ -162,7 +178,13 @@ Copy `.env.example` to `.env` only for local experimentation. Do not commit `.en
 
 ## Repository Topics
 
-Suggested GitHub topics:
+Recommended GitHub metadata:
+
+```text
+Description: Lightweight local job-search tracker for applications, interviews, ghosting, and pipeline health.
+```
+
+Suggested topics:
 
 - `career-pipeline`
 - `job-search`
@@ -170,18 +192,34 @@ Suggested GitHub topics:
 - `productivity`
 - `workflow`
 - `career-tools`
+- `react`
+- `nextjs`
 
-Do not add `react` or `nextjs` topics unless the frontend is migrated to those technologies.
+Note: the current implementation is plain Python, HTML, CSS, and JavaScript. Keep `react` and `nextjs` only if you intentionally want topic discoverability for a future migration; remove them if you prefer strict technology accuracy.
 
 ## Roadmap
 
-- Improve empty-state onboarding and first-run guidance.
-- Add a focused follow-up queue.
-- Split closed ghosted outcomes from active ghosting risk in charts where helpful.
-- Add response-time and interview-conversion trend views.
+Near-term:
+
 - Add demo screenshots using fictional data.
 - Add lightweight tests for status and ghosting rules.
-- Explore a hosted version later without changing the local-first product.
+- Improve mobile layout polish after manual viewport testing.
+- Add local backup and import guidance.
+
+Product improvements:
+
+- Improve analytics for response time, interview conversion, and rejection trends.
+- Add configurable ghosting thresholds in the UI.
+- Add a focused follow-up queue.
+- Improve reminders and follow-up tracking.
+
+Keep avoiding:
+
+- AI features
+- recruiter integrations
+- enterprise workflows
+- social features
+- hosted architecture until the local-first product is excellent
 
 ## Contributing
 
@@ -194,5 +232,7 @@ Keep contributions lightweight, privacy-conscious, and focused on individual job
 This project uses a custom Personal Use Only Licence.
 
 Personal and private use by individuals is allowed. Commercial use is not allowed without written permission from the owner. Recruiters, job boards, agencies, commercial platforms, and paid services may not use, host, resell, rebrand, integrate, or redistribute the app without a separate commercial licence.
+
+This repository is source-available, but it is not open-source in the OSI sense because commercial use is restricted.
 
 See `LICENSE` for the full terms.
