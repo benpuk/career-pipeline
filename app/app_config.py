@@ -31,7 +31,6 @@ APP_CONFIG = {
         "ghostingThresholdDays": env_int("NEXT_PUBLIC_GHOSTING_THRESHOLD_DAYS", 21),
         "warningThresholdDays": 14,
         "resetGhostingCounterOnContact": True,
-        "useSuggestedGhosting": False,
     },
     "statuses": {
         "active": ["In Progress", "Interview", "Offer Pending"],
