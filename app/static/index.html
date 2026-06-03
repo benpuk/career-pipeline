@@ -3,24 +3,26 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Job Application Tracker</title>
+  <title>Career Pipeline</title>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
   <header class="app-header">
     <div>
-      <h1 id="appName">Job Application Tracker</h1>
-      <p id="appDescription">A lightweight tracker for managing job applications, follow-ups, ghosting, interviews, rejections, and pipeline health.</p>
+      <h1 id="appName">Career Pipeline</h1>
+      <p id="appDescription">Track applications, interviews, ghosting, and job-search progress with clarity.</p>
     </div>
-    <nav>
-      <button data-view="dashboard" class="active">Dashboard</button>
-      <button data-view="list">Applications</button>
-      <button data-view="form">Add Role</button>
+    <nav aria-label="Primary">
+      <button type="button" data-view="dashboard" class="active" aria-current="page">Dashboard</button>
+      <button type="button" data-view="list">Applications</button>
+      <button type="button" data-view="form">Add Role</button>
       <a id="csvExportLink" href="/export/applications.csv">Export CSV</a>
     </nav>
   </header>
 
   <main>
+    <p id="appStatus" class="app-status muted" role="status" aria-live="polite"></p>
+
     <section id="dashboard" class="view active">
       <div id="kpis" class="kpi-grid"></div>
 
@@ -112,7 +114,7 @@
               <th>Status</th>
               <th>Date applied</th>
               <th>Days</th>
-              <th>CV used</th>
+              <th>Route</th>
               <th>Fit</th>
               <th>Location</th>
               <th>Salary</th>
@@ -140,15 +142,15 @@
         <label>Location <input name="location"></label>
         <label>Remote/hybrid/onsite <select name="work_mode"><option></option><option>Remote</option><option>Hybrid</option><option>Onsite</option></select></label>
         <label>Travel requirement <input name="travel_requirement"></label>
-        <label>Source/job board <input name="source"></label>
-        <label>Job advert URL <input name="job_url" type="url"></label>
-        <label>Recruiter/contact name <input name="recruiter_name"></label>
+        <label>Source <input name="source"></label>
+        <label>Role URL <input name="job_url" type="url"></label>
+        <label>Contact name <input name="contact_name"></label>
         <label>Contact email <input name="contact_email" type="email"></label>
         <label>Contact phone <input name="contact_phone"></label>
         <label>Last contact/update <input type="date" name="last_contact_date"></label>
         <label>Follow-up date <input type="date" name="follow_up_date"></label>
         <label>Outcome date <input type="date" name="outcome_date"></label>
-        <label>Recruiter-led <input type="checkbox" name="recruiter_led"></label>
+        <label>Contact-led application <input type="checkbox" name="contact_led"></label>
         <label>Contract role flag <input type="checkbox" name="contract_flag"></label>
         <label class="span-2">Next action <input name="next_action"></label>
         <label class="span-2">Tags <input name="tags"></label>

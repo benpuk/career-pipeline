@@ -20,7 +20,7 @@ __pycache__/
 .venv/
 venv/
 
-local-job-crm/data/
+app/data/
 *.sqlite
 *.sqlite3
 *.db

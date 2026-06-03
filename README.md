@@ -1,26 +1,34 @@
-# Job Application Tracker
+# Career Pipeline
 
-A lightweight private web app for managing job applications, follow-ups, ghosting, interviews, rejections, and pipeline health.
+Track applications, interviews, ghosting, and job-search progress with clarity.
 
-This repository is prepared for a private GitHub release. It should remain private unless the owner chooses otherwise.
+Career Pipeline is a lightweight local job-search tracking system for individual professionals. It is designed to feel calm, fast, private, and easy to scan while still giving useful pipeline analytics.
 
-## What The App Does
+It is not an applicant tracking system, hiring platform, social platform, automation tool, or resume-spam workflow.
 
-- Tracks job applications, status, dates, fit score, notes, follow-ups, contacts, and outcomes.
-- Shows dashboard KPIs, weekly trends, status breakdown, active ageing, route performance, and priority follow-ups.
-- Stores runtime data locally in SQLite.
-- Exports application data to CSV when enabled.
-- Starts empty by default so real application data is not committed.
-- Can optionally seed fictional demo data for screenshots or portfolio review.
+## Screenshots
 
-## Key Features
+Screenshots should be added to `docs/screenshots/` using fictional demo data only.
 
-- Application list with search and status filters.
-- Application detail view with contact, timeline, notes, job description, and interview sections.
-- Dashboard with active, closed, interview, rejection, ghosting, and pipeline-health metrics.
-- Ghosting counter based on last contact or date applied.
-- CSV export controlled by config.
-- CSV import endpoint is disabled by default for a safer private release.
+Suggested captures:
+
+- dashboard overview
+- applications table
+- application detail view
+- add/edit role form
+
+Do not commit screenshots that contain real company names, contact names, salaries, notes, URLs, emails, phone numbers, or browser storage.
+
+## Features
+
+- Track applications, statuses, dates, fit score, follow-ups, contacts, notes, and outcomes.
+- View a dashboard for active applications, interview progress, ghosting risk, response rate, conversion rate, and pipeline health.
+- Review priority follow-ups based on fit, age, due dates, and ghosting risk.
+- Track interview notes and timeline events.
+- Export CSV when enabled.
+- Run locally with SQLite.
+- Start empty by default.
+- Optionally seed fictional demo data for review or screenshots.
 
 ## Local Setup
 
@@ -30,7 +38,7 @@ This repository is prepared for a private GitHub release. It should remain priva
 - npm
 - Python 3.10 or newer
 
-The npm scripts intentionally wrap the lightweight Python local app. There is no Electron, Tauri, hosted backend, authentication layer, or SaaS packaging.
+The npm scripts wrap the lightweight Python local app. There is no installer, desktop shell, hosted service, authentication layer, or heavy backend framework.
 
 ### Install
 
@@ -50,10 +58,10 @@ Open:
 http://127.0.0.1:8765
 ```
 
-You can still run the Python app directly:
+Run directly with Python:
 
 ```bash
-python3 local-job-crm/app.py
+python3 app/app.py
 ```
 
 Use another port or host:
@@ -64,17 +72,12 @@ PORT=9000 HOST=127.0.0.1 npm run dev
 
 ### Build And Checks
 
-This project does not require a frontend build step. The build script verifies the Python source compiles:
-
 ```bash
 npm run build
-```
-
-The lint script currently performs the same lightweight Python compile check:
-
-```bash
 npm run lint
 ```
+
+These scripts currently verify that the Python source compiles.
 
 ### Optional Docker
 
@@ -90,24 +93,14 @@ Then open:
 http://127.0.0.1:8765
 ```
 
-Docker stores the runtime SQLite database in the `job_tracker_data` volume.
-
-### Runtime Data
-
-The local database is created at:
-
-```text
-local-job-crm/data/job_tracker.sqlite3
-```
-
-The `data/` folder is ignored by Git and must not be committed.
+Docker stores runtime SQLite data in the `career_pipeline_data` volume.
 
 ## Configuration
 
-Configuration lives in:
+Main configuration lives in:
 
 ```text
-local-job-crm/app_config.py
+app/app_config.py
 ```
 
 Safe environment placeholders are documented in:
@@ -115,17 +108,6 @@ Safe environment placeholders are documented in:
 ```text
 .env.example
 ```
-
-The config controls:
-
-- app name, description, owner, and copyright year
-- ghosting threshold, currently 21 days
-- warning threshold, currently 14 days
-- active, closed, and default statuses
-- date display format and default currency
-- local/browser storage key names for future client-side use
-- feature flags for demo data, CSV export, CSV import, analytics, and commercial branding
-- licence metadata
 
 Supported environment overrides:
 
@@ -142,27 +124,29 @@ Demo data is disabled by default:
 "enableDemoData": False
 ```
 
-If enabled, only fictional records are loaded, using companies such as Acme Technologies, Northstar Digital, FutureStack, and BluePeak Systems.
+When enabled, demo mode loads fictional sample data only. Demo companies include Northstar Digital, FutureStack, BluePeak Systems, Atlas Cloud, and Vertex Dynamics.
 
-Do not enable demo data in a database that already contains real application records unless you are comfortable mixing fake and real records locally.
+Do not enable demo data in a local database that already contains real records unless you are comfortable mixing fake and real records locally.
 
 ## Ghosting Logic
 
-There is only one `Ghosted` status.
+- There is only one `Ghosted` status.
+- Applications remain `In Progress` until they have had 21 or more days without contact.
+- The ghosting counter uses `last_contact_date` if present, otherwise `date_applied`.
+- Any contact, such as a holding update, delay notice, contact reply, or interview update, should update `last_contact_date` and restart the counter.
+- `Ghosted` is a closed outcome unless the application is reopened.
+- `Rejected`, `Rejected Post Interview`, `Withdrawn`, and `Offer Accepted` are closed outcomes.
+- There is no separate suggested ghosting status.
 
-Applications remain `In Progress` until they have had 21 or more days without contact. The app can then recommend reviewing the application for ghosting or show it as ghosting-risk, depending on configuration and UI behavior.
+## Runtime Data And Privacy
 
-The ghosting counter uses:
+The local database is created at:
 
 ```text
-last_contact_date if present, otherwise date_applied
+app/data/career_pipeline.sqlite3
 ```
 
-If contact is received, such as a holding email, delay update, recruiter reply, or interview update, update `last_contact_date`. The role remains or returns to `In Progress`, and the counter restarts.
-
-`Rejected`, `Rejected Post Interview`, `Ghosted`, `Withdrawn`, and `Offer Accepted` are closed outcomes. A `Ghosted` role can be reopened if contact later resumes.
-
-## Data Protection
+The `data/` folder is ignored by Git and must not be committed.
 
 Do not commit:
 
@@ -170,22 +154,45 @@ Do not commit:
 - `.env` files
 - CSV exports
 - workbook exports or backups
-- screenshots containing application data
+- screenshots containing personal information
 - browser storage exports
-- cached application state
-
-The repository `.gitignore` blocks those artifacts by default.
+- cached application data
 
 Copy `.env.example` to `.env` only for local experimentation. Do not commit `.env`.
+
+## Repository Topics
+
+Suggested GitHub topics:
+
+- `career-pipeline`
+- `job-search`
+- `analytics`
+- `productivity`
+- `workflow`
+- `career-tools`
+
+Do not add `react` or `nextjs` topics unless the frontend is migrated to those technologies.
+
+## Roadmap
+
+- Improve empty-state onboarding and first-run guidance.
+- Add a focused follow-up queue.
+- Split closed ghosted outcomes from active ghosting risk in charts where helpful.
+- Add response-time and interview-conversion trend views.
+- Add demo screenshots using fictional data.
+- Add lightweight tests for status and ghosting rules.
+- Explore a hosted version later without changing the local-first product.
+
+## Contributing
+
+See `CONTRIBUTING.md`.
+
+Keep contributions lightweight, privacy-conscious, and focused on individual job seekers. Avoid adding authentication, social features, heavy integrations, or recruiting workflows.
 
 ## Licence
 
 This project uses a custom Personal Use Only Licence.
 
-Personal and private use by individuals is allowed. Commercial use is not allowed without written permission from the owner. Companies, recruiters, job boards, agencies, SaaS providers, and commercial platforms may not use, host, resell, rebrand, integrate, or redistribute the app without a separate commercial licence.
+Personal and private use by individuals is allowed. Commercial use is not allowed without written permission from the owner. Recruiters, job boards, agencies, commercial platforms, and paid services may not use, host, resell, rebrand, integrate, or redistribute the app without a separate commercial licence.
 
-See [LICENSE](LICENSE) for the full terms.
-
-## Private Release Note
-
-Create the GitHub repository as private. Do not publish this repository publicly unless you have reviewed the code, data, screenshots, exports, and licence terms again.
+See `LICENSE` for the full terms.

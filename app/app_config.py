@@ -20,8 +20,8 @@ def env_int(name, default):
 
 APP_CONFIG = {
     "app": {
-        "name": os.environ.get("NEXT_PUBLIC_APP_NAME", "Job Application Tracker"),
-        "description": "A lightweight tracker for managing job applications, follow-ups, ghosting, interviews, rejections, and pipeline health.",
+        "name": os.environ.get("NEXT_PUBLIC_APP_NAME", "Career Pipeline"),
+        "description": "Track applications, interviews, ghosting, and job-search progress with clarity.",
         "owner": "Ben Picot",
         "copyrightYear": 2026,
     },
@@ -43,8 +43,8 @@ APP_CONFIG = {
         "currency": os.environ.get("NEXT_PUBLIC_DEFAULT_CURRENCY", "GBP"),
     },
     "storage": {
-        "applicationStorageKey": "jobApplicationTracker.applications",
-        "settingsStorageKey": "jobApplicationTracker.settings",
+        "applicationStorageKey": "careerPipeline.applications",
+        "settingsStorageKey": "careerPipeline.settings",
     },
     "features": {
         "enableDemoData": env_bool("NEXT_PUBLIC_ENABLE_DEMO_DATA", False),

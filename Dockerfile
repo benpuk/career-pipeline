@@ -9,4 +9,4 @@ ENV PORT=8765
 
 EXPOSE 8765
 
-CMD ["python3", "local-job-crm/app.py"]
+CMD ["python3", "app/app.py"]

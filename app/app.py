@@ -26,7 +26,7 @@ from demo_data import DEMO_APPLICATIONS
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
-DB_PATH = DATA_DIR / "job_tracker.sqlite3"
+DB_PATH = DATA_DIR / "career_pipeline.sqlite3"
 STATIC_DIR = BASE_DIR / "static"
 
 ROLE_TYPE_RULES = [
@@ -36,7 +36,6 @@ ROLE_TYPE_RULES = [
     ("Professional Services", r"\b(?:professional services|proserve|practice manager|engagement manager|services engagement|services project|services delivery)\b"),
     ("Implementation", r"\b(?:implementation|implementations|technical implementation)\b"),
     ("Transformation", r"\b(?:transformation|change delivery|business change|operating model)\b"),
-    ("AI", r"\b(?:openai|ai|ml|artificial intelligence)\b"),
     ("Delivery", r"\b(?:delivery|programme|program|project|pmo|portfolio|product)\b"),
     ("Operations", r"\b(?:operations|governance|supplier|vendor|commercial|digital systems)\b"),
     ("SAP / ERP", r"\b(?:sap|erp|s/4hana)\b"),
@@ -182,7 +181,7 @@ def init_db():
                 travel_requirement TEXT,
                 source TEXT,
                 job_url TEXT,
-                recruiter_name TEXT,
+                contact_name TEXT,
                 contact_email TEXT,
                 contact_phone TEXT,
                 job_description TEXT,
@@ -194,7 +193,7 @@ def init_db():
                 tags TEXT,
                 last_contact_date TEXT,
                 outcome_date TEXT,
-                recruiter_led INTEGER NOT NULL DEFAULT 0,
+                contact_led INTEGER NOT NULL DEFAULT 0,
                 contract_flag INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -256,7 +255,7 @@ APPLICATION_FIELDS = [
     "travel_requirement",
     "source",
     "job_url",
-    "recruiter_name",
+    "contact_name",
     "contact_email",
     "contact_phone",
     "job_description",
@@ -268,7 +267,7 @@ APPLICATION_FIELDS = [
     "tags",
     "last_contact_date",
     "outcome_date",
-    "recruiter_led",
+    "contact_led",
     "contract_flag",
 ]
 
@@ -280,7 +279,7 @@ def normalize_payload(payload):
     data["date_applied"] = data["date_applied"] or today_iso()
     data["status"] = normalize_status(data["status"])
     data["fit_score"] = clean_fit(data["fit_score"])
-    data["recruiter_led"] = 1 if str(data["recruiter_led"]).lower() in {"1", "true", "yes", "on"} else 0
+    data["contact_led"] = 1 if str(data["contact_led"]).lower() in {"1", "true", "yes", "on"} else 0
     data["contract_flag"] = 1 if str(data["contract_flag"]).lower() in {"1", "true", "yes", "on"} else 0
     if data["status"] in CLOSED_STATUSES and not data["outcome_date"]:
         data["outcome_date"] = data["last_contact_date"] or today_iso()
@@ -415,8 +414,10 @@ def dashboard_data():
     interviews = sum(1 for app in apps if app["status"] in INTERVIEW_STATUSES)
     rejections = sum(1 for app in apps if app["status"] == "Rejected")
     post_interview = sum(1 for app in apps if app["status"] == "Rejected Post Interview")
-    ghosted = sum(1 for app in apps if app["status"] == "Ghosted" or is_ghosting_risk(app))
+    ghosted = sum(1 for app in apps if app["status"] == "Ghosted")
+    ghosting_risk = sum(1 for app in active if is_ghosting_risk(app))
     offers = sum(1 for app in apps if app["status"] in {"Offer Pending", "Offer Accepted"})
+    responded = sum(1 for app in apps if app["last_contact_date"] and days_between(app["date_applied"], app["last_contact_date"]) > 0)
     this_week = sum(1 for app in apps if days_between(app["date_applied"]) <= date.today().weekday())
     avg_active = round(sum(app["days_active"] for app in active) / len(active), 1) if active else 0
 
@@ -492,12 +493,15 @@ def dashboard_data():
             "active": len(active),
             "rejections": rejections,
             "ghosted": ghosted,
+            "ghosting_risk": ghosting_risk,
             "interviews": interviews,
             "post_interview_rejections": post_interview,
             "offers": offers,
             "applications_this_week": this_week,
             "average_days_active": avg_active,
             "pipeline_health": round((len(active) / total * 100), 1) if total else 0,
+            "response_rate": round((responded / total * 100), 1) if total else 0,
+            "interview_conversion_rate": round((interviews / total * 100), 1) if total else 0,
         },
         "weekly": weekly_rows,
         "status_breakdown": [{"label": key, "value": value} for key, value in status_breakdown.items()],
@@ -662,7 +666,7 @@ class Handler(SimpleHTTPRequestHandler):
         body = output.getvalue().encode("utf-8")
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/csv")
-        self.send_header("Content-Disposition", "attachment; filename=job_applications_export.csv")
+        self.send_header("Content-Disposition", "attachment; filename=career_pipeline_export.csv")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)

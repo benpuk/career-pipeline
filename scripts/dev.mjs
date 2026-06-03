@@ -7,7 +7,7 @@ const env = {
   PYTHONPYCACHEPREFIX: process.env.PYTHONPYCACHEPREFIX || path.join(process.cwd(), ".pycache"),
 };
 
-const child = spawn(python, ["local-job-crm/app.py"], {
+const child = spawn(python, ["app/app.py"], {
   env,
   stdio: "inherit",
 });
