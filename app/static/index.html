@@ -3,90 +3,64 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Career Pipeline</title>
+  <title>Local Job Application Tracker</title>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
   <header class="app-header">
     <div>
-      <h1 id="appName">Career Pipeline</h1>
-      <p id="appDescription">Track applications, interviews, ghosting, and job-search progress with clarity.</p>
+      <h1>Job Application Tracker</h1>
+      <p>Private local CRM for applications, follow-ups, interviews and pipeline health.</p>
     </div>
-    <nav aria-label="Primary">
-      <button type="button" data-view="dashboard" class="active" aria-current="page">Dashboard</button>
-      <button type="button" data-view="list">Applications</button>
-      <button type="button" data-view="form">Add Role</button>
-      <a id="csvExportLink" href="/export/applications.csv">Export CSV</a>
+    <nav>
+      <button data-view="dashboard" class="active">Dashboard</button>
+      <button data-view="list">Applications</button>
+      <button data-view="form">Add Role</button>
+      <button id="darkModeToggle" type="button">Dark</button>
+      <a href="/export/applications.csv">Export CSV</a>
     </nav>
   </header>
 
   <main>
-    <p id="appStatus" class="app-status muted" role="status" aria-live="polite"></p>
-
     <section id="dashboard" class="view active">
       <div id="kpis" class="kpi-grid"></div>
 
       <div class="dashboard-grid">
         <section class="panel wide">
-          <h2>Weekly Application Trend</h2>
+          <h2>Weekly Trend</h2>
           <div id="weeklyChart" class="bar-chart"></div>
         </section>
-        <section class="panel">
-          <h2>Forecast Possible Outcomes</h2>
-          <p class="muted">Forecast from active applications only. This is not a prediction.</p>
-          <div id="forecastChart" class="bar-chart compact"></div>
-        </section>
-        <section class="panel">
-          <h2>Status Breakdown</h2>
-          <div id="statusChart" class="bar-chart compact"></div>
-        </section>
-        <section class="panel">
-          <h2>Active Pipeline Ageing</h2>
-          <div id="ageingChart" class="bar-chart compact"></div>
-        </section>
         <section class="panel wide">
-          <h2>CV Route Performance</h2>
-          <div id="bestRoute" class="callout"></div>
-          <table>
-            <thead>
-              <tr>
-                <th>Route</th>
-                <th>Apps</th>
-                <th>Avg fit</th>
-                <th>Interview %</th>
-                <th>Rejection %</th>
-                <th>Ghosting %</th>
-                <th>Traction</th>
-              </tr>
-            </thead>
-            <tbody id="cvRouteRows"></tbody>
-          </table>
+          <h2>Interview Funnel</h2>
+          <p class="muted section-help">Shows where applications are converting into contact, interviews, offers or closed outcomes.</p>
+          <div id="interviewFunnel"></div>
+          <div id="conversionMetrics" class="conversion-grid"></div>
         </section>
-        <section class="panel wide">
-          <h2>Role Type Performance</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Role type</th>
-                <th>Apps</th>
-                <th>Avg fit</th>
-                <th>Interview %</th>
-                <th>Rejection %</th>
-                <th>Ghosting %</th>
-                <th>Traction</th>
-              </tr>
-            </thead>
-            <tbody id="roleTypeRows"></tbody>
-          </table>
+        <section class="panel third">
+          <h2>Weighted Pipeline Score</h2>
+          <p class="muted section-help">Scores active roles by interview/contact signals and freshness.</p>
+          <div id="pipelineScore"></div>
+        </section>
+        <section class="panel third">
+          <h2>Offer Forecast</h2>
+          <p class="muted section-help">Conservative scenario estimate, not a prediction.</p>
+          <div id="offerForecast"></div>
+        </section>
+        <section class="panel third">
+          <h2>Application Outcome Timing</h2>
+          <p class="muted section-help">Shows how quickly applications are rejected, progress, or go silent. Fast rejections may be automated or recruiter-driven.</p>
+          <div id="outcomeTimingChart" class="bar-chart compact"></div>
         </section>
         <section class="panel wide">
           <h2>Priority Follow-ups</h2>
+          <p class="muted section-help">Ranks active roles by interview status, fit and days since meaningful activity.</p>
           <table>
             <thead>
               <tr>
                 <th>Company</th>
                 <th>Role</th>
-                <th>Days</th>
+                <th>Days active</th>
+                <th>Last activity</th>
                 <th>Status</th>
                 <th>Fit</th>
                 <th>Suggested action</th>
@@ -94,6 +68,95 @@
             </thead>
             <tbody id="followupRows"></tbody>
           </table>
+        </section>
+        <section class="panel wide">
+          <h2>Role Quality Heatmap</h2>
+          <p class="muted section-help">Compares outcomes by fit score band to check whether high-fit roles are getting better traction.</p>
+          <div id="roleQualityNote" class="callout"></div>
+          <table>
+            <thead>
+              <tr>
+                <th>Fit band</th>
+                <th>Apps</th>
+                <th>Active</th>
+                <th>Interviews</th>
+                <th>Rejections</th>
+                <th>Ghosted</th>
+                <th>Interview %</th>
+                <th>Ghosting %</th>
+              </tr>
+            </thead>
+            <tbody id="roleQualityRows"></tbody>
+          </table>
+        </section>
+        <section class="panel wide">
+          <h2>CV Route Performance</h2>
+          <p class="muted section-help">Compares CV routes, with confidence based on sample size.</p>
+          <div id="bestRoute" class="callout"></div>
+          <table>
+            <thead>
+              <tr>
+                <th>Route</th>
+                <th>Apps</th>
+                <th>Avg fit</th>
+                <th>Interviews</th>
+                <th>Rejections</th>
+                <th>Ghosted</th>
+                <th>Active</th>
+                <th>Interview %</th>
+                <th>Traction</th>
+                <th>Confidence</th>
+              </tr>
+            </thead>
+            <tbody id="cvRouteRows"></tbody>
+          </table>
+        </section>
+        <section class="panel wide">
+          <h2>Source Performance</h2>
+          <p class="muted section-help">Shows which application sources are producing traction or closed outcomes.</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Source</th>
+                <th>Apps</th>
+                <th>Avg fit</th>
+                <th>Interviews</th>
+                <th>Rejections</th>
+                <th>Ghosted</th>
+                <th>Active</th>
+                <th>Interview %</th>
+                <th>Traction</th>
+                <th>Confidence</th>
+              </tr>
+            </thead>
+            <tbody id="sourceRows"></tbody>
+          </table>
+        </section>
+        <section class="panel wide">
+          <h2>Role Type Performance</h2>
+          <p class="muted section-help">Shows which role types are converting into interviews or going quiet.</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Role type</th>
+                <th>Apps</th>
+                <th>Avg fit</th>
+                <th>Interviews</th>
+                <th>Rejections</th>
+                <th>Ghosted</th>
+                <th>Active</th>
+                <th>Interview %</th>
+                <th>Traction</th>
+                <th>Confidence</th>
+              </tr>
+            </thead>
+            <tbody id="roleTypeRows"></tbody>
+          </table>
+        </section>
+        <section class="panel wide">
+          <h2>Rejection Reasons</h2>
+          <p class="muted section-help">Groups rejection outcomes so unknowns do not hide useful patterns.</p>
+          <div id="rejectionReasonsChart" class="bar-chart compact"></div>
         </section>
       </div>
     </section>
@@ -109,55 +172,63 @@
         <table>
           <thead>
             <tr>
-              <th>Company</th>
-              <th>Role</th>
-              <th>Status</th>
-              <th>Date applied</th>
-              <th>Days</th>
-              <th>Route</th>
-              <th>Fit</th>
-              <th>Location</th>
-              <th>Salary</th>
-              <th>Source</th>
-              <th>Ghosting review</th>
-              <th>Next action</th>
+              <th data-sort="company">Company</th>
+              <th data-sort="role_title">Role</th>
+              <th data-sort="status">Status</th>
+              <th data-sort="date_applied">Date applied</th>
+              <th data-sort="days_active">Days</th>
+              <th data-sort="days_since_last_contact">Last contact</th>
+              <th data-sort="cv_route">CV used</th>
+              <th data-sort="fit_score">Fit</th>
+              <th data-sort="source">Source</th>
+              <th data-sort="effective_status">Effective status</th>
+              <th data-sort="next_action">Next action</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody id="applicationRows"></tbody>
         </table>
       </div>
-      <section id="detail" class="panel hidden"></section>
+    </section>
+
+    <section id="detail" class="view">
+      <div id="roleDetail"></div>
     </section>
 
     <section id="form" class="view">
-      <form id="applicationForm" class="panel form-grid">
+      <form id="applicationForm" class="panel form-grid" novalidate>
         <input type="hidden" name="id">
         <label>Company <input name="company" required></label>
         <label>Role title <input name="role_title" required></label>
         <label>Date applied <input type="date" name="date_applied" required></label>
         <label>Status <select name="status"></select></label>
+        <label>Interview stage reached <select name="interview_stage"></select></label>
         <label>CV route <select name="cv_route"></select></label>
+        <label>Role type <select name="role_type"></select></label>
         <label>Fit score 1-5 <input type="number" name="fit_score" min="1" max="5" step="0.5"></label>
         <label>Salary/range <input name="salary"></label>
         <label>Location <input name="location"></label>
-        <label>Remote/hybrid/onsite <select name="work_mode"><option></option><option>Remote</option><option>Hybrid</option><option>Onsite</option></select></label>
-        <label>Travel requirement <input name="travel_requirement"></label>
-        <label>Source <input name="source"></label>
-        <label>Role URL <input name="job_url" type="url"></label>
-        <label>Contact name <input name="contact_name"></label>
-        <label>Contact email <input name="contact_email" type="email"></label>
+        <label>Remote/hybrid/onsite <select name="work_mode"></select></label>
+        <label>Travel requirement <select name="travel_requirement"></select></label>
+        <label>Source/job board <select name="source"></select></label>
+        <label>Job advert URL <input name="job_url"></label>
+        <label>Recruiter/contact name <input name="recruiter_name"></label>
+        <label>Contact email <input name="contact_email"></label>
         <label>Contact phone <input name="contact_phone"></label>
         <label>Last contact/update <input type="date" name="last_contact_date"></label>
         <label>Follow-up date <input type="date" name="follow_up_date"></label>
         <label>Outcome date <input type="date" name="outcome_date"></label>
-        <label>Contact-led application <input type="checkbox" name="contact_led"></label>
+        <label>Recruiter-led <input type="checkbox" name="recruiter_led"></label>
         <label>Contract role flag <input type="checkbox" name="contract_flag"></label>
         <label class="span-2">Next action <input name="next_action"></label>
         <label class="span-2">Tags <input name="tags"></label>
         <label class="span-2">Job description <textarea name="job_description"></textarea></label>
         <label class="span-2">Cover letter/message sent <textarea name="cover_letter"></textarea></label>
         <label class="span-2">Notes <textarea name="notes"></textarea></label>
-        <label class="span-2">Reason for rejection <textarea name="rejection_reason"></textarea></label>
+        <label class="span-2">Attachment/file references <textarea name="attachment_links" placeholder="/Users/you/Documents/..."></textarea></label>
+        <label>Employer rejection reason <select name="rejection_reason"></select></label>
+        <label class="span-2">Employer rejection email / note <textarea name="rejection_email"></textarea></label>
+        <label class="span-2">Withdrawal / rejected by me note <textarea name="withdrawal_reason"></textarea></label>
         <div class="form-actions span-2">
           <button type="submit">Save application</button>
           <button type="button" id="resetForm">Reset</button>
@@ -165,6 +236,53 @@
       </form>
     </section>
   </main>
+
+  <div id="editModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <div>
+          <h2 id="editModalTitle">Edit application</h2>
+          <p class="muted">Update the role record without leaving the applications table.</p>
+        </div>
+        <button type="button" id="closeEditModal" aria-label="Close edit window">Close</button>
+      </div>
+      <form id="editApplicationForm" class="form-grid" novalidate></form>
+    </div>
+  </div>
+
+  <div id="rejectModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="rejectModalTitle">
+    <div class="modal-panel small-modal">
+      <div class="modal-header">
+        <div>
+          <h2 id="rejectModalTitle">Mark rejected</h2>
+          <p class="muted">Choose the reason category and paste the rejection email or note if useful.</p>
+        </div>
+        <button type="button" id="closeRejectModal" aria-label="Close reject window">Close</button>
+      </div>
+      <form id="rejectForm" class="reject-form" novalidate>
+        <input type="hidden" name="id">
+        <label>Rejection reason <select name="rejection_reason" required></select></label>
+        <label>Rejection email / note <textarea name="rejection_email"></textarea></label>
+        <div class="form-actions">
+          <button type="submit">Save rejection</button>
+          <button type="button" id="cancelReject">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="attachmentPreviewModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="attachmentPreviewTitle">
+    <div class="modal-panel attachment-preview-modal">
+      <div class="modal-header">
+        <div>
+          <h2 id="attachmentPreviewTitle">Document preview</h2>
+          <p id="attachmentPreviewPath" class="muted"></p>
+        </div>
+        <button type="button" onclick="closeAttachmentPreview()" aria-label="Close document preview">Close</button>
+      </div>
+      <div id="attachmentPreviewBody" class="attachment-preview-body"></div>
+    </div>
+  </div>
 
   <script src="/static/app.js"></script>
 </body>
