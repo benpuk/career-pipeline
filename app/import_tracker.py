@@ -111,6 +111,7 @@ def convert_row(raw):
         "role_title": raw.get("Title") or raw.get("Role") or raw.get("role_title") or "",
         "date_applied": excel_date(raw.get("Date Applied") or raw.get("Date") or raw.get("date_applied") or app.today_iso()),
         "status": app.normalize_status(raw.get("Stage") or raw.get("Status") or raw.get("status") or app.DEFAULT_STATUS),
+        "interview_stage": raw.get("Interview Stage") or raw.get("Interview Stage Reached") or raw.get("interview_stage") or "",
         "last_contact_date": excel_date(raw.get("Last Update") or raw.get("last_contact_date") or ""),
         "source": raw.get("Source") or raw.get("source") or "",
         "next_action": raw.get("Next Action") or raw.get("next_action") or "",
@@ -124,6 +125,9 @@ def convert_row(raw):
         "cv_route": normalize_route(raw.get("Best CV Route") or raw.get("CV Route") or raw.get("cv_route") or ""),
         "fit_score": raw.get("Market Fit %") or raw.get("Fit Score") or raw.get("fit_score") or "",
         "notes": raw.get("Comments") or raw.get("Projection Notes") or raw.get("Notes") or "",
+        "rejection_reason": raw.get("Rejection Reason") or raw.get("rejection_reason") or "",
+        "rejection_email": raw.get("Rejection Email") or raw.get("rejection_email") or "",
+        "withdrawal_reason": raw.get("Withdrawal Reason") or raw.get("Rejected By Me Reason") or raw.get("withdrawal_reason") or "",
     }
 
 
