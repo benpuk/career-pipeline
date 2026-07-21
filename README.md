@@ -86,6 +86,14 @@ Use another port or host:
 PORT=9000 HOST=127.0.0.1 npm run dev
 ```
 
+Make it reachable from other devices on your local network:
+
+```bash
+HOST=0.0.0.0 PORT=8765 python3 app/app.py
+```
+
+Then open `http://<your-mac-lan-ip>:8765` from another device on the same network. This app has no login, so only use this on a trusted private network.
+
 ### Build And Checks
 
 ```bash

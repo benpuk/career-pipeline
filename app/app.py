@@ -81,6 +81,7 @@ TRAVEL_REQUIREMENTS = ["None", "Occasional", "Regular", "High", "Unknown"]
 
 REJECTION_REASONS = [
     "Not recorded",
+    "Immediate Rejection (0-2 days)",
     "Better matched candidates",
     "Insufficient experience",
     "Skills mismatch",
@@ -88,6 +89,7 @@ REJECTION_REASONS = [
     "Salary / level mismatch",
     "Security clearance / eligibility",
     "Role closed / hiring paused",
+    "No response / ghosted",
     "No longer interested",
     "Other",
 ]
@@ -272,39 +274,110 @@ def interview_stage_from_rank(rank):
     }.get(rank, "")
 
 
-def reached_interview_stage(app):
-    rank = interview_stage_rank(app.get("interview_stage"))
+def get_interview_stage(app):
     stage_text = str(app.get("interview_stages") or "")
+    rank = 0
     for part in re.split(r"[\n,;/|]+", stage_text):
         rank = max(rank, interview_stage_rank(part))
-    if app.get("interview_count", 0) > 0 and rank == 0:
-        rank = interview_stage_rank(stage_text) or interview_stage_rank("Stage 1")
-    if app.get("effective_status") in INTERVIEW_STATUSES and rank == 0:
-        rank = interview_stage_rank("Stage 1")
-    if app.get("effective_status") == "Rejection Post Interview" and rank == 0:
-        rank = interview_stage_rank("Stage 1")
     return interview_stage_from_rank(rank)
 
 
+def is_interviewed(app):
+    return interview_stage_rank(get_interview_stage(app)) > 0
+
+
+def get_interview_stage_counts(apps):
+    counts = {
+        "screening": 0,
+        "stage_1": 0,
+        "stage_2": 0,
+        "stage_3": 0,
+    }
+    for app in apps:
+        rank = interview_stage_rank(get_interview_stage(app))
+        if rank >= interview_stage_rank("Screening"):
+            counts["screening"] += 1
+        if rank >= interview_stage_rank("Stage 1"):
+            counts["stage_1"] += 1
+        if rank >= interview_stage_rank("Stage 2"):
+            counts["stage_2"] += 1
+        if rank >= interview_stage_rank("Stage 3"):
+            counts["stage_3"] += 1
+    return counts
+
+
+def get_interviewed_application_count(apps):
+    return sum(1 for app in apps if is_interviewed(app))
+
+
+def get_interview_event_count(apps):
+    return sum(get_interview_stage_counts(apps).values())
+
+
+def attach_interview_history(apps, conn=None):
+    if not apps:
+        return apps
+    owns_connection = conn is None
+    if owns_connection:
+        conn = db()
+    try:
+        app_ids = [app["id"] for app in apps if app.get("id") is not None]
+        if not app_ids:
+            return apps
+        placeholders = ",".join("?" for _ in app_ids)
+        rows = conn.execute(
+            f"""
+            SELECT application_id, stage_name, scheduled_at
+            FROM interviews
+            WHERE application_id IN ({placeholders})
+            ORDER BY scheduled_at ASC, id ASC
+            """,
+            app_ids,
+        ).fetchall()
+    finally:
+        if owns_connection:
+            conn.close()
+
+    by_app = {app["id"]: {"count": 0, "stages": [], "latest_date": ""} for app in apps if app.get("id") is not None}
+    for row in rows:
+        item = by_app.get(row["application_id"])
+        if item is None:
+            continue
+        stage = normalize_interview_stage(row["stage_name"])
+        item["count"] += 1
+        if stage:
+            item["stages"].append(stage)
+        current = latest_date(item["latest_date"], row["scheduled_at"])
+        item["latest_date"] = current.isoformat() if current else item["latest_date"]
+
+    for app in apps:
+        item = by_app.get(app.get("id"), {"count": 0, "stages": [], "latest_date": ""})
+        app["interview_count"] = item["count"]
+        app["interview_stages"] = " | ".join(item["stages"])
+        app["latest_interview_date"] = item["latest_date"]
+        app["reached_interview_stage"] = get_interview_stage(app)
+        app["interview_stage"] = app["reached_interview_stage"]
+    return apps
+
+
+def reached_interview_stage(app):
+    return get_interview_stage(app)
+
+
 def has_interview_reached(app, stage):
-    return interview_stage_rank(reached_interview_stage(app)) >= interview_stage_rank(stage)
+    return interview_stage_rank(get_interview_stage(app)) >= interview_stage_rank(stage)
 
 
 def is_interview_stage(app, stage):
-    return reached_interview_stage(app) == normalize_interview_stage(stage)
+    return get_interview_stage(app) == normalize_interview_stage(stage)
 
 
 def has_interview_data(app):
-    return interview_stage_rank(reached_interview_stage(app)) > 0
+    return is_interviewed(app)
 
 
 def interview_breakdown_counts(apps):
-    return {
-        "screening": sum(1 for app in apps if is_interview_stage(app, "Screening")),
-        "stage_1": sum(1 for app in apps if is_interview_stage(app, "Stage 1")),
-        "stage_2": sum(1 for app in apps if is_interview_stage(app, "Stage 2")),
-        "stage_3": sum(1 for app in apps if is_interview_stage(app, "Stage 3")),
-    }
+    return get_interview_stage_counts(apps)
 
 
 def latest_contact_or_applied_date(row):
@@ -502,6 +575,7 @@ def init_db():
         )
         ensure_columns(conn)
         migrate_statuses(conn)
+        migrate_interview_history(conn)
         migrate_rejection_reasons(conn)
 
 
@@ -528,6 +602,101 @@ def migrate_statuses(conn):
     )
     for legacy, current in LEGACY_STATUS_MAP.items():
         conn.execute("UPDATE applications SET status=? WHERE status=?", (current, legacy))
+
+
+def migrate_interview_history(conn):
+    try:
+        legacy_rows = conn.execute(
+            """
+            SELECT id, interview_stage, last_contact_date, date_applied
+            FROM applications
+            WHERE COALESCE(interview_stage, '')<>''
+            """
+        ).fetchall()
+    except sqlite3.OperationalError:
+        legacy_rows = []
+    for row in legacy_rows:
+        ensure_logged_interview_stage(
+            conn,
+            row["id"],
+            row["interview_stage"],
+            row["last_contact_date"] or row["date_applied"],
+        )
+
+    try:
+        interview_rows = conn.execute("SELECT application_id, stage_name FROM interviews").fetchall()
+    except sqlite3.OperationalError:
+        interview_rows = []
+    reached = {}
+    for row in interview_rows:
+        stage = normalize_interview_stage(row["stage_name"])
+        if not stage:
+            continue
+        app_id = row["application_id"]
+        current = reached.get(app_id, "")
+        if interview_stage_rank(stage) > interview_stage_rank(current):
+            reached[app_id] = stage
+    for app_id, stage in reached.items():
+        conn.execute("UPDATE applications SET interview_stage=? WHERE id=?", (stage, app_id))
+
+    conn.execute(
+        """
+        UPDATE applications
+        SET interview_stage=''
+        WHERE id NOT IN (SELECT DISTINCT application_id FROM interviews)
+          AND COALESCE(interview_stage, '')<>''
+        """
+    )
+
+
+def ensure_logged_interview_stage(conn, app_id, stage, scheduled_at=None):
+    normalized_stage = normalize_interview_stage(stage)
+    if not normalized_stage:
+        return
+    rows = conn.execute("SELECT stage_name FROM interviews WHERE application_id=?", (app_id,)).fetchall()
+    current_rank = max((interview_stage_rank(row["stage_name"]) for row in rows), default=0)
+    if current_rank >= interview_stage_rank(normalized_stage):
+        return
+    event_date = (scheduled_at or today_iso())[:10] or today_iso()
+    conn.execute(
+        """
+        INSERT INTO interviews (
+            application_id, stage_name, scheduled_at, interviewer_names, interviewer_emails,
+            meeting_link, prep_notes, questions_asked, feedback, outcome, follow_up_sent
+        ) VALUES (?, ?, ?, '', '', '', '', '', '', '', 0)
+        """,
+        (app_id, normalized_stage, event_date),
+    )
+    conn.execute(
+        "INSERT INTO timeline_events (application_id, event_date, event_type, details) VALUES (?, ?, ?, ?)",
+        (app_id, event_date, "Interview", normalized_stage),
+    )
+
+
+def interview_payload(payload):
+    return {
+        "stage_name": normalize_interview_stage(payload.get("stage_name", "Interview")),
+        "scheduled_at": payload.get("scheduled_at", ""),
+        "interviewer_names": payload.get("interviewer_names", ""),
+        "interviewer_emails": payload.get("interviewer_emails", ""),
+        "meeting_link": payload.get("meeting_link", ""),
+        "prep_notes": payload.get("prep_notes", ""),
+        "questions_asked": payload.get("questions_asked", ""),
+        "feedback": payload.get("feedback", ""),
+        "outcome": payload.get("outcome", ""),
+        "follow_up_sent": 1 if payload.get("follow_up_sent") else 0,
+    }
+
+
+def sync_application_interview_stage(conn, app_id):
+    rows = conn.execute("SELECT stage_name FROM interviews WHERE application_id=?", (app_id,)).fetchall()
+    rank = 0
+    for row in rows:
+        rank = max(rank, interview_stage_rank(row["stage_name"]))
+    conn.execute(
+        "UPDATE applications SET interview_stage=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+        (interview_stage_from_rank(rank), app_id),
+    )
 
 
 def classify_rejection_reason(text):
@@ -684,6 +853,7 @@ def create_application(payload):
             "INSERT INTO timeline_events (application_id, event_date, event_type, details) VALUES (?, ?, ?, ?)",
             (app_id, data["date_applied"], "Applied", f"Applied for {data['role_title']} at {data['company']}"),
         )
+        ensure_logged_interview_stage(conn, app_id, data["interview_stage"], data["last_contact_date"] or data["date_applied"])
     return app_id
 
 
@@ -703,6 +873,7 @@ def update_application(app_id, payload):
                 "INSERT INTO timeline_events (application_id, event_date, event_type, details) VALUES (?, ?, ?, ?)",
                 (app_id, data["last_contact_date"] or today_iso(), "Status Change", f"{before['status']} -> {data['status']}"),
             )
+        ensure_logged_interview_stage(conn, app_id, data["interview_stage"], data["last_contact_date"] or data["date_applied"])
 
 
 def list_applications(filters=None):
@@ -723,6 +894,7 @@ def list_applications(filters=None):
     sql += " ORDER BY date_applied DESC, id DESC"
     with db() as conn:
         rows = [row_to_dict(row) for row in conn.execute(sql, params).fetchall()]
+    attach_interview_history(rows)
     if status_filter:
         rows = [row for row in rows if row["effective_status"] == status_filter]
     if filters.get("active") == "1":
@@ -741,13 +913,11 @@ def get_application(app_id):
         attachments = [dict(item) for item in conn.execute("SELECT * FROM attachments WHERE application_id=? ORDER BY id ASC", (app_id,))]
     data = row_to_dict(row)
     data["interviews"] = interviews
-    data["interview_count"] = len(interviews)
-    data["interview_stages"] = " | ".join(item.get("stage_name") or "" for item in interviews)
+    attach_interview_history([data])
     latest_interview = None
     for item in interviews:
         latest_interview = latest_date(latest_interview.isoformat() if latest_interview else "", item.get("scheduled_at"))
     data["latest_interview_date"] = latest_interview.isoformat() if latest_interview else ""
-    data["reached_interview_stage"] = reached_interview_stage(data)
     data["timeline"] = timeline
     data["followups"] = followups
     data["attachments"] = attachments
@@ -867,7 +1037,6 @@ def final_interview_count(apps):
 def funnel_rows(apps):
     total = len(apps)
     stages = [
-        ("Total applications", total),
         ("Recruiter contact / screening", sum(1 for app in apps if has_recruiter_activity(app))),
         ("Interviews", sum(1 for app in apps if has_interview_data(app))),
         ("Stage 3 interviews", final_interview_count(apps)),
@@ -964,6 +1133,10 @@ def rejection_reason_category(app):
     lower = reason.lower()
     if not reason or reason == "Not recorded":
         return "Immediate Rejection (0-2 days)" if app["days_active"] <= 2 else "Unknown"
+    if "immediate" in lower:
+        return "Immediate Rejection (0-2 days)"
+    if "no response" in lower or "ghosted" in lower or "no reply" in lower:
+        return "No response / ghosted"
     if "matched" in lower or "candidate" in lower:
         return "Better matched candidates"
     if "skill" in lower or "experience" in lower:
@@ -979,6 +1152,7 @@ def rejection_reason_rows(apps):
     labels = [
         "Immediate Rejection (0-2 days)",
         "Better matched candidates",
+        "No response / ghosted",
         "Skills mismatch",
         "Salary / location / working pattern",
         "Role closed / hiring paused",
@@ -1055,25 +1229,105 @@ def offer_forecast(apps):
     support = min(1, recruiter_contact * 0.04 + high_fit * 0.025 + medium_fit * 0.012)
     chance_30 = round(base_min + (base_max - base_min) * support, 1)
     chance_60 = round(min(75, chance_30 + 10 + active_interviews * 5 + min(10, recruiter_contact * 0.8)), 1)
+    chance_by_target = offer_chances_by_target(chance_30, chance_60)
     confidence = "High" if active_interviews >= 3 and offers else "Medium" if active_interviews >= 1 else "Low"
-    warning = "" if offers else "No historical offer data available. Forecast is based on current pipeline composition only."
-    assumption = (
+    note = (
         f"Uses historical interview-to-offer rate of {round(historical_rate * 100, 1)}% plus current pipeline composition."
         if historical_rate is not None and offers
-        else warning
+        else "No historical offer data available. Forecast is based on current pipeline composition only."
     )
+    top_roles = []
+    for app in active:
+        forecast = forecast_for(app, apps)
+        base_offer_chance = role_offer_likelihood(app)
+        top_roles.append({
+            "id": app["id"],
+            "company": app["company"],
+            "role_title": app["role_title"],
+            "offer_chance": base_offer_chance,
+            "offer_chances": role_offer_chances_by_target(base_offer_chance),
+            "engagement_level": forecast["engagement_level"],
+            "fit_score": app.get("fit_score") or 0,
+        })
+    top_roles.sort(key=lambda row: (row["offer_chance"], row["fit_score"], row["company"]), reverse=True)
     return {
         "chance_30": chance_30,
         "chance_60": chance_60,
+        "chance_by_target": chance_by_target,
         "confidence": confidence,
-        "warning": warning,
+        "note": note,
         "active_interviews": active_interviews,
         "recruiter_contact_active": recruiter_contact,
         "high_fit_active": high_fit,
         "medium_fit_active": medium_fit,
         "historical_interview_to_offer_rate": round(historical_rate * 100, 1) if historical_rate is not None else None,
-        "assumptions": assumption,
+        "top_roles": top_roles[:3],
     }
+
+
+def offer_chances_by_target(chance_30, chance_60):
+    chance_30 = number_safe(chance_30)
+    chance_60 = number_safe(chance_60)
+    gain = max(0, chance_60 - chance_30)
+    return {
+        "30": round(chance_30, 1),
+        "60": round(chance_60, 1),
+        "90": round(min(85, chance_60 + gain * 0.65), 1),
+        "120": round(min(90, chance_60 + gain * 1.05), 1),
+    }
+
+
+def role_offer_chances_by_target(base_chance):
+    base_chance = number_safe(base_chance)
+    return {
+        "30": round(max(1, min(70, base_chance * 0.78)), 1),
+        "60": round(max(1, min(70, base_chance)), 1),
+        "90": round(max(1, min(80, base_chance + (80 - base_chance) * 0.18)), 1),
+        "120": round(max(1, min(85, base_chance + (85 - base_chance) * 0.30)), 1),
+    }
+
+
+def number_safe(value):
+    return float(value or 0)
+
+
+def role_offer_likelihood(app):
+    rank = interview_stage_rank(get_interview_stage(app))
+    level = engagement_level(app)
+    if rank >= interview_stage_rank("Stage 3"):
+        score = 62
+    elif rank >= interview_stage_rank("Stage 2"):
+        score = 54
+    elif rank >= interview_stage_rank("Stage 1"):
+        score = 45
+    elif rank >= interview_stage_rank("Screening") or level == "Screening":
+        score = 32
+    elif level == "Engaged":
+        score = 16
+    else:
+        score = 6
+
+    fit = app.get("fit_score") or 3
+    score += (fit - 3) * 5
+
+    days = app.get("days_since_last_contact")
+    if days is None:
+        days = app.get("days_active", 0)
+    if days <= 3:
+        score += 5
+    elif days <= 7:
+        score += 2
+    elif days >= 21:
+        score -= 10
+    elif days >= 14:
+        score -= 5
+
+    if app.get("effective_status") == "Interview":
+        score += 4
+    if app.get("recruiter_led"):
+        score += 2
+
+    return round(max(1, min(70, score)), 1)
 
 
 def weekly_application_target(apps, offer, interview_total):
@@ -1165,20 +1419,40 @@ def forecast_for(row, apps):
     return normalized
 
 
+def latest_role_summary(apps, *date_fields):
+    if not apps:
+        return None
+
+    def sort_key(app):
+        parsed_dates = [parse_date(app.get(field)) for field in date_fields]
+        latest = max((item for item in parsed_dates if item), default=date.min)
+        return (latest, app.get("id") or 0)
+
+    latest = max(apps, key=sort_key)
+    return {
+        "company": latest.get("company") or "",
+        "role_title": latest.get("role_title") or "",
+        "fit_score": latest.get("fit_score"),
+    }
+
+
+def interview_timing_counts(interview_rows):
+    today = date.today()
+    counts = {"completed": 0, "future": 0}
+    for row in interview_rows:
+        scheduled = parse_date(row["scheduled_at"])
+        if scheduled and scheduled > today:
+            counts["future"] += 1
+        else:
+            counts["completed"] += 1
+    return counts
+
+
 def dashboard_data():
     apps = list_applications()
     with db() as conn:
-        interview_rows = conn.execute("SELECT application_id, stage_name, scheduled_at FROM interviews").fetchall()
+        interview_rows = conn.execute("SELECT scheduled_at FROM interviews").fetchall()
         followup_rows = conn.execute("SELECT application_id, due_date, completed FROM followups").fetchall()
-    interview_dates = {}
-    interview_stages = {}
-    interview_counts = {}
-    for row in interview_rows:
-        app_id = row["application_id"]
-        interview_counts[app_id] = interview_counts.get(app_id, 0) + 1
-        interview_stages[app_id] = " | ".join(part for part in [interview_stages.get(app_id, ""), row["stage_name"] or ""] if part)
-        current = latest_date(interview_dates.get(app_id), row["scheduled_at"])
-        interview_dates[app_id] = current.isoformat() if current else interview_dates.get(app_id, "")
     followup_dates = {}
     followup_sent = {}
     for row in followup_rows:
@@ -1187,18 +1461,15 @@ def dashboard_data():
         followup_dates[app_id] = current.isoformat() if current else followup_dates.get(app_id, "")
         followup_sent[app_id] = bool(followup_sent.get(app_id)) or bool(row["completed"])
     for app in apps:
-        app["latest_interview_date"] = interview_dates.get(app["id"], "")
         app["latest_followup_date"] = followup_dates.get(app["id"], "")
-        app["interview_count"] = interview_counts.get(app["id"], 0)
-        app["interview_stages"] = interview_stages.get(app["id"], "")
-        app["reached_interview_stage"] = reached_interview_stage(app)
         app["followup_sent"] = followup_sent.get(app["id"], False)
         app["days_since_last_activity"] = days_since_meaningful_activity(app)
 
     active = [app for app in apps if app["is_active"]]
     total = len(apps)
     interview_breakdown = interview_breakdown_counts(apps)
-    interviews = sum(interview_breakdown.values())
+    interviews = get_interviewed_application_count(apps)
+    interview_events = get_interview_event_count(apps)
     rejections = sum(1 for app in apps if app["effective_status"] in EMPLOYER_REJECTION_STATUSES)
     post_interview = sum(1 for app in apps if app["effective_status"] == "Rejection Post Interview")
     ghosted = sum(1 for app in apps if app["effective_status"] == "Ghosted")
@@ -1222,6 +1493,7 @@ def dashboard_data():
 
     score = pipeline_score(apps)
     conversions = conversion_metrics(apps)
+    interview_timing = interview_timing_counts(interview_rows)
 
     ageing = {"0-7 days": 0, "8-14 days": 0, "15-20 days": 0, "21+ days": 0}
     for app in active:
@@ -1326,8 +1598,19 @@ def dashboard_data():
             "rejections": rejections,
             "ghosted": ghosted,
             "interviews": interviews,
+            "interview_events": interview_events,
+            "completed_interviews": interview_timing["completed"],
+            "future_interviews": interview_timing["future"],
             "interview_breakdown": interview_breakdown,
             "post_interview_rejections": post_interview,
+            "latest_active_application": latest_role_summary(active, "date_applied"),
+            "latest_rejection": latest_role_summary(rejected_apps, "outcome_date", "last_contact_date", "date_applied"),
+            "latest_ghosted": latest_role_summary(
+                [app for app in apps if app["effective_status"] == "Ghosted"],
+                "effective_ghosted_date",
+                "last_contact_date",
+                "date_applied",
+            ),
             "offers": offers,
             "withdrawn": withdrawn,
             "closed_outcomes": closed_outcomes,
@@ -1392,6 +1675,19 @@ def import_csv_text(text):
             create_application(payload)
             count += 1
     return count
+
+
+def applications_csv_text(apps=None):
+    apps = list_applications() if apps is None else apps
+    output = io.StringIO()
+    fields = ["id"] + APPLICATION_FIELDS + ["effective_status", "effective_ghosted_date", "days_active", "ageing_bucket"]
+    writer = csv.DictWriter(output, fieldnames=fields)
+    writer.writeheader()
+    for app in apps:
+        row = {field: app.get(field, "") for field in fields}
+        row["interview_stage"] = get_interview_stage(app)
+        writer.writerow(row)
+    return output.getvalue()
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -1463,9 +1759,7 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json({"ok": True})
         if parsed.path.startswith("/api/applications/") and parsed.path.endswith("/interviews"):
             app_id = clean_int(parsed.path.split("/")[-2])
-            payload = self.read_json()
-            stage_name = payload.get("stage_name", "Interview")
-            normalized_stage = normalize_interview_stage(stage_name)
+            payload = interview_payload(self.read_json())
             with db() as conn:
                 cur = conn.execute(
                     """
@@ -1476,7 +1770,7 @@ class Handler(SimpleHTTPRequestHandler):
                     """,
                     (
                         app_id,
-                        stage_name,
+                        payload["stage_name"],
                         payload.get("scheduled_at", ""),
                         payload.get("interviewer_names", ""),
                         payload.get("interviewer_emails", ""),
@@ -1485,17 +1779,17 @@ class Handler(SimpleHTTPRequestHandler):
                         payload.get("questions_asked", ""),
                         payload.get("feedback", ""),
                         payload.get("outcome", ""),
-                        1 if payload.get("follow_up_sent") else 0,
+                        payload["follow_up_sent"],
                     ),
                 )
                 conn.execute(
                     "INSERT INTO timeline_events (application_id, event_date, event_type, details) VALUES (?, ?, ?, ?)",
-                    (app_id, payload.get("scheduled_at", today_iso())[:10] or today_iso(), "Interview", stage_name),
+                    (app_id, payload.get("scheduled_at", today_iso())[:10] or today_iso(), "Interview", payload["stage_name"]),
                 )
                 current = conn.execute("SELECT status, interview_stage FROM applications WHERE id=?", (app_id,)).fetchone()
                 if current:
                     current_stage = normalize_interview_stage(current["interview_stage"])
-                    reached_stage = normalized_stage
+                    reached_stage = payload["stage_name"]
                     if interview_stage_rank(current_stage) > interview_stage_rank(reached_stage):
                         reached_stage = current_stage
                     new_status = "Interview" if current["status"] == "In Progress" else current["status"]
@@ -1586,11 +1880,55 @@ class Handler(SimpleHTTPRequestHandler):
                     "INSERT INTO timeline_events (application_id, event_date, event_type, details) VALUES (?, ?, ?, ?)",
                     (app_id, today_iso(), "Quick Action", f"{before['status']} -> {new_status}"),
                 )
+                if new_status == "Interview":
+                    ensure_logged_interview_stage(conn, app_id, "Stage 1", today_iso())
             return self.send_json({"ok": True})
         return self.send_error(HTTPStatus.NOT_FOUND)
 
     def do_PUT(self):
         parsed = urlparse(self.path)
+        if parsed.path.startswith("/api/applications/") and "/interviews/" in parsed.path:
+            parts = parsed.path.strip("/").split("/")
+            if len(parts) == 5 and parts[0] == "api" and parts[1] == "applications" and parts[3] == "interviews":
+                app_id = clean_int(parts[2])
+                interview_id = clean_int(parts[4])
+                payload = interview_payload(self.read_json())
+                with db() as conn:
+                    existing = conn.execute(
+                        "SELECT id FROM interviews WHERE id=? AND application_id=?",
+                        (interview_id, app_id),
+                    ).fetchone()
+                    if not existing:
+                        return self.send_json({"error": "Interview not found."}, HTTPStatus.NOT_FOUND)
+                    conn.execute(
+                        """
+                        UPDATE interviews
+                        SET stage_name=?, scheduled_at=?, interviewer_names=?, interviewer_emails=?,
+                            meeting_link=?, prep_notes=?, questions_asked=?, feedback=?, outcome=?,
+                            follow_up_sent=?, updated_at=CURRENT_TIMESTAMP
+                        WHERE id=? AND application_id=?
+                        """,
+                        (
+                            payload["stage_name"],
+                            payload["scheduled_at"],
+                            payload["interviewer_names"],
+                            payload["interviewer_emails"],
+                            payload["meeting_link"],
+                            payload["prep_notes"],
+                            payload["questions_asked"],
+                            payload["feedback"],
+                            payload["outcome"],
+                            payload["follow_up_sent"],
+                            interview_id,
+                            app_id,
+                        ),
+                    )
+                    sync_application_interview_stage(conn, app_id)
+                    conn.execute(
+                        "INSERT INTO timeline_events (application_id, event_date, event_type, details) VALUES (?, ?, ?, ?)",
+                        (app_id, payload["scheduled_at"][:10] or today_iso(), "Interview Update", payload["stage_name"]),
+                    )
+                return self.send_json({"ok": True})
         if parsed.path.startswith("/api/applications/"):
             app_id = clean_int(parsed.path.rsplit("/", 1)[-1])
             try:
@@ -1615,14 +1953,7 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def export_applications_csv(self):
-        apps = list_applications()
-        output = io.StringIO()
-        fields = ["id"] + APPLICATION_FIELDS + ["effective_status", "effective_ghosted_date", "days_active", "ageing_bucket"]
-        writer = csv.DictWriter(output, fieldnames=fields)
-        writer.writeheader()
-        for app in apps:
-            writer.writerow({field: app.get(field, "") for field in fields})
-        body = output.getvalue().encode("utf-8")
+        body = applications_csv_text().encode("utf-8")
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/csv")
         self.send_header("Content-Disposition", "attachment; filename=job_applications_export.csv")
@@ -1634,8 +1965,9 @@ class Handler(SimpleHTTPRequestHandler):
 def main():
     init_db()
     port = int(os.environ.get("PORT", "8765"))
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
-    print(f"Job tracker running at http://127.0.0.1:{port}")
+    host = os.environ.get("HOST", "127.0.0.1")
+    server = ThreadingHTTPServer((host, port), Handler)
+    print(f"Job tracker running at http://{host}:{port}")
     print(f"Database: {DB_PATH}")
     server.serve_forever()
 

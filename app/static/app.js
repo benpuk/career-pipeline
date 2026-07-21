@@ -4,7 +4,9 @@ const state = {
   sortKey: localStorage.getItem("sortKey") || "date_applied",
   sortDir: localStorage.getItem("sortDir") || "desc",
   currentDetailId: null,
+  currentInterviewAppId: null,
   attachmentPreviewUrl: null,
+  offerForecastTargetDays: localStorage.getItem("offerForecastTargetDays") || "60",
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -69,11 +71,11 @@ function renderKpis(kpis, ageing = []) {
   const breakdown = kpis.interview_breakdown || {};
   const labels = [
     ["Total applications", kpis.total, "", "total"],
-    ["Active applications", kpis.active, "", "active"],
+    ["Active applications", kpis.active, renderKpiRole(kpis.latest_active_application), "active"],
     ["Pipeline ageing", kpis.active, renderPipelineAgeing(ageing), "ageing"],
-    ["Interviews", kpis.interviews, renderInterviewBreakdown(breakdown), "interview"],
-    ["Rejections", kpis.rejections, "", "bad"],
-    ["Ghosted", kpis.ghosted, "", "ghost"],
+    ["Interviewed apps", kpis.interviews, renderInterviewBreakdown(breakdown, kpis.interview_events, kpis.completed_interviews, kpis.future_interviews), "interview"],
+    ["Rejections", kpis.rejections, renderKpiRole(kpis.latest_rejection), "bad"],
+    ["Ghosted", kpis.ghosted, renderKpiRole(kpis.latest_ghosted), "ghost"],
     ["Offers", kpis.offers, "", "offer"],
     ["Withdrawn by me", kpis.withdrawn, "", "neutral"],
     ["Closed outcomes", kpis.closed_outcomes, "", "closed"],
@@ -88,6 +90,17 @@ function renderKpis(kpis, ageing = []) {
       ${detail || ""}
     </div>
   `).join("");
+}
+
+function renderKpiRole(role) {
+  if (!role) return "";
+  return `
+    <div class="kpi-role">
+      <strong>${escapeHtml(role.company || "No company")}</strong>
+      <span>${escapeHtml(role.role_title || "No role title")}</span>
+      ${role.fit_score ? `<em>Fit ${Number(role.fit_score).toFixed(Number(role.fit_score) % 1 ? 1 : 0)}</em>` : ""}
+    </div>
+  `;
 }
 
 function renderPipelineAgeing(ageing) {
@@ -119,14 +132,18 @@ function ageingClass(label) {
   return "stale";
 }
 
-function renderInterviewBreakdown(breakdown) {
+function renderInterviewBreakdown(breakdown, events, completed, future) {
   const rows = [
     ["Screening", breakdown.screening],
     ["Stage 1", breakdown.stage_1],
     ["Stage 2", breakdown.stage_2],
     ["Stage 3", breakdown.stage_3],
+    ["Interview Events", events],
   ];
-  return `<dl class="kpi-breakdown">${rows.map(([label, value]) => `<div><dt>${label}</dt><dd>${value || 0}</dd></div>`).join("")}</dl>`;
+  return `
+    <dl class="kpi-breakdown">${rows.map(([label, value]) => `<div><dt>${label}</dt><dd>${value || 0}</dd></div>`).join("")}</dl>
+    <p class="kpi-note"><strong>${completed || 0}/${future || 0}</strong> completed/upcoming</p>
+  `;
 }
 
 function renderBars(selector, rows, labelKey = "label", valueKey = "value", options = {}) {
@@ -249,7 +266,6 @@ function renderPieChart(selector, rows, options = {}) {
 }
 
 function renderFunnel(rows) {
-  const max = Math.max(1, ...rows.map((row) => Number(row.count) || 0));
   return `
     <div class="funnel-list">
       ${rows.map((row) => `
@@ -258,7 +274,7 @@ function renderFunnel(rows) {
             <strong>${escapeHtml(row.label)}</strong>
             <span>${row.count} · ${pct(row.percent_total)} of total${row.conversion === null ? "" : ` · ${pct(row.conversion)} from previous`}</span>
           </div>
-          <div class="bar-track"><div class="bar-fill" style="width:${Math.max(2, row.count / max * 100)}%"></div></div>
+          <div class="bar-track"><div class="bar-fill" style="width:${Math.max(2, Number(row.percent_total) || 0)}%"></div></div>
         </div>
       `).join("")}
     </div>
@@ -290,15 +306,44 @@ function renderConversionMetrics(metrics) {
 }
 
 function renderOfferForecast(forecast) {
+  const roles = forecast.top_roles || [];
+  const targetDays = ["30", "60", "90", "120"].includes(state.offerForecastTargetDays) ? state.offerForecastTargetDays : "60";
+  const chanceByTarget = forecast.chance_by_target || {
+    30: forecast.chance_30,
+    60: forecast.chance_60,
+  };
+  const selectedChance = chanceByTarget[targetDays] ?? forecast.chance_60 ?? forecast.chance_30;
   return `
-    <div class="forecast-summary">
-      <div><span>30 days</span><strong>${pct(forecast.chance_30)}</strong></div>
-      <div><span>60 days</span><strong>${pct(forecast.chance_60)}</strong></div>
+    <div class="forecast-control">
+      <label for="offerForecastTarget">Target start date</label>
+      <select id="offerForecastTarget" onchange="setOfferForecastTarget(this.value)">
+        ${["30", "60", "90", "120"].map((days) => `<option value="${days}" ${days === targetDays ? "selected" : ""}>${days} days</option>`).join("")}
+      </select>
     </div>
-    <p class="muted">Confidence: ${escapeHtml(forecast.confidence)} · Active interviews: ${forecast.active_interviews} · Recruiter contact: ${forecast.recruiter_contact_active} · High-fit active: ${forecast.high_fit_active} · Medium-fit active: ${forecast.medium_fit_active}</p>
-    ${forecast.warning ? `<p class="muted warning-note">${escapeHtml(forecast.warning)}</p>` : ""}
-    <p class="muted">${escapeHtml(forecast.assumptions)}</p>
+    <div class="forecast-summary">
+      <div><span>${targetDays} day offer forecast</span><strong>${pct(selectedChance)}</strong></div>
+    </div>
+    <div class="forecast-meta">
+      <span>Confidence: <strong>${escapeHtml(forecast.confidence)}</strong></span>
+      <span>Active interviews: ${forecast.active_interviews}</span>
+      <span>Recruiter contact: ${forecast.recruiter_contact_active}</span>
+    </div>
+    <div class="forecast-top-roles">
+      <h3>Top offer chances</h3>
+      ${roles.length ? roles.map((role) => `
+        <button type="button" class="forecast-role" onclick="openRoleDetail(${role.id})">
+          <span><strong>${escapeHtml(role.company)}</strong><small>${escapeHtml(role.role_title)}</small></span>
+          <em>${pct((role.offer_chances || {})[targetDays] ?? role.offer_chance)}</em>
+        </button>
+      `).join("") : `<p class="muted">No active roles to rank.</p>`}
+    </div>
   `;
+}
+
+function setOfferForecastTarget(days) {
+  state.offerForecastTargetDays = days;
+  localStorage.setItem("offerForecastTargetDays", days);
+  loadDashboard();
 }
 
 async function loadDashboard() {
@@ -573,7 +618,20 @@ function timelineList(items) {
 }
 
 function interviewList(items) {
-  return `<div class="stack">${(items || []).map((item) => `<article class="mini-card"><strong>${escapeHtml(item.stage_name)}</strong><span>${escapeHtml(item.scheduled_at || "")}</span><p>${escapeHtml(item.outcome || "")}</p><p>${escapeHtml(item.feedback || "")}</p></article>`).join("") || "<p class='muted'>No interviews recorded.</p>"}</div>`;
+  return `<div class="stack">${(items || []).map((item) => `
+    <article class="mini-card interview-card">
+      <div class="mini-card-heading">
+        <strong>${escapeHtml(item.stage_name)}</strong>
+        <span>${escapeHtml(item.scheduled_at || "")}</span>
+      </div>
+      ${item.interviewer_names ? `<p>${escapeHtml(item.interviewer_names)}</p>` : ""}
+      ${item.outcome ? `<p><strong>Outcome:</strong> ${escapeHtml(item.outcome)}</p>` : ""}
+      ${item.feedback ? `<p>${escapeHtml(item.feedback)}</p>` : ""}
+      <div class="attachment-actions">
+        <button type="button" onclick="openInterviewModal(${item.application_id}, ${item.id})">View / edit</button>
+      </div>
+    </article>
+  `).join("") || "<p class='muted'>No interviews recorded.</p>"}</div>`;
 }
 
 function followupList(items) {
@@ -699,6 +757,58 @@ async function saveInterview(event, id) {
   payload.follow_up_sent = form.elements.follow_up_sent.checked;
   await api(`/api/applications/${id}/interviews`, { method: "POST", body: JSON.stringify(payload) });
   await refreshAfterMutation(id);
+}
+
+async function openInterviewModal(appId, interviewId) {
+  const app = await api(`/api/applications/${appId}`);
+  const interview = (app.interviews || []).find((item) => Number(item.id) === Number(interviewId));
+  if (!interview) {
+    alert("Interview details could not be found.");
+    return;
+  }
+  state.currentInterviewAppId = appId;
+  const form = $("#interviewEditForm");
+  const stageOptions = (state.options?.interview_stages || ["", "Screening", "Stage 1", "Stage 2", "Stage 3"])
+    .filter(Boolean)
+    .map((item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`)
+    .join("");
+  form.elements.stage_name.innerHTML = stageOptions;
+  form.elements.application_id.value = appId;
+  form.elements.interview_id.value = interviewId;
+  form.elements.stage_name.value = interview.stage_name || "Screening";
+  form.elements.scheduled_at.value = interview.scheduled_at || "";
+  form.elements.interviewer_names.value = interview.interviewer_names || "";
+  form.elements.interviewer_emails.value = interview.interviewer_emails || "";
+  form.elements.meeting_link.value = interview.meeting_link || "";
+  form.elements.prep_notes.value = interview.prep_notes || "";
+  form.elements.questions_asked.value = interview.questions_asked || "";
+  form.elements.feedback.value = interview.feedback || "";
+  form.elements.outcome.value = interview.outcome || "";
+  form.elements.follow_up_sent.checked = Boolean(interview.follow_up_sent);
+  $("#interviewModalTitle").textContent = `${app.company} - ${interview.stage_name || "Interview"}`;
+  $("#interviewModal").classList.remove("hidden");
+}
+
+function closeInterviewModal() {
+  $("#interviewModal").classList.add("hidden");
+  $("#interviewEditForm").reset();
+  state.currentInterviewAppId = null;
+}
+
+async function saveInterviewEdit(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const appId = form.elements.application_id.value;
+  const interviewId = form.elements.interview_id.value;
+  const payload = Object.fromEntries(new FormData(form).entries());
+  payload.follow_up_sent = form.elements.follow_up_sent.checked;
+  try {
+    await api(`/api/applications/${appId}/interviews/${interviewId}`, { method: "PUT", body: JSON.stringify(payload) });
+    closeInterviewModal();
+    await refreshAfterMutation(appId);
+  } catch (error) {
+    alert(`Save failed: ${error.message}`);
+  }
 }
 
 async function saveFollowup(event, id) {
@@ -853,6 +963,12 @@ function initEvents() {
   $("#rejectModal").addEventListener("click", (event) => {
     if (event.target.id === "rejectModal") closeRejectModal();
   });
+  $("#interviewEditForm").addEventListener("submit", saveInterviewEdit);
+  $("#closeInterviewModal").addEventListener("click", closeInterviewModal);
+  $("#cancelInterviewEdit").addEventListener("click", closeInterviewModal);
+  $("#interviewModal").addEventListener("click", (event) => {
+    if (event.target.id === "interviewModal") closeInterviewModal();
+  });
   $("#attachmentPreviewModal").addEventListener("click", (event) => {
     if (event.target.id === "attachmentPreviewModal") closeAttachmentPreview();
   });
@@ -886,6 +1002,9 @@ function initEvents() {
     }
     if (event.key === "Escape" && !$("#attachmentPreviewModal").classList.contains("hidden")) {
       closeAttachmentPreview();
+    }
+    if (event.key === "Escape" && !$("#interviewModal").classList.contains("hidden")) {
+      closeInterviewModal();
     }
   });
   $("#clearFilters").addEventListener("click", () => {

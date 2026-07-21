@@ -271,6 +271,36 @@
     </div>
   </div>
 
+  <div id="interviewModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="interviewModalTitle">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <div>
+          <h2 id="interviewModalTitle">Interview details</h2>
+          <p class="muted">View or update the interview history entry.</p>
+        </div>
+        <button type="button" id="closeInterviewModal" aria-label="Close interview window">Close</button>
+      </div>
+      <form id="interviewEditForm" class="form-grid" novalidate>
+        <input type="hidden" name="application_id">
+        <input type="hidden" name="interview_id">
+        <label>Stage <select name="stage_name" required></select></label>
+        <label>Date/time <input name="scheduled_at" placeholder="YYYY-MM-DD or YYYY-MM-DDTHH:MM"></label>
+        <label>Interviewers <input name="interviewer_names"></label>
+        <label>Emails <input name="interviewer_emails"></label>
+        <label class="span-2">Meeting link/location <input name="meeting_link"></label>
+        <label class="span-2">Preparation notes <textarea name="prep_notes"></textarea></label>
+        <label class="span-2">Questions asked <textarea name="questions_asked"></textarea></label>
+        <label class="span-2">Feedback <textarea name="feedback"></textarea></label>
+        <label class="span-2">Outcome <input name="outcome"></label>
+        <label>Follow-up sent <input name="follow_up_sent" type="checkbox"></label>
+        <div class="form-actions span-2">
+          <button type="submit">Save interview</button>
+          <button type="button" id="cancelInterviewEdit">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div id="attachmentPreviewModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="attachmentPreviewTitle">
     <div class="modal-panel attachment-preview-modal">
       <div class="modal-header">
